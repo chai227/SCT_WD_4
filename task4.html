@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>To-Do App</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 30px auto;
+      padding: 10px;
+      background: #f0f4f8;
+      color: #333;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    form {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    input[type="text"] {
+      flex: 1 1 300px;
+      padding: 10px;
+      font-size: 1rem;
+      border: 2px solid #ccc;
+      border-radius: 6px;
+    }
+    input[type="datetime-local"] {
+      padding: 10px;
+      font-size: 1rem;
+      border: 2px solid #ccc;
+      border-radius: 6px;
+      flex: 1 1 200px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 1rem;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      flex: 0 0 auto;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+    li {
+      background: white;
+      margin-bottom: 10px;
+      padding: 12px 15px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    .task-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      cursor: pointer;
+    }
+    .task-info.completed span {
+      text-decoration: line-through;
+      color: #888;
+    }
+    .task-desc {
+      font-weight: 600;
+      font-size: 1.1rem;
+    }
+    .task-date {
+      font-size: 0.9rem;
+      color: #666;
+      margin-top: 4px;
+    }
+    .actions {
+      margin-left: 10px;
+      display: flex;
+      gap: 8px;
+    }
+    .actions button {
+      background-color: #008CBA;
+      padding: 6px 10px;
+      font-size: 0.9rem;
+      border-radius: 4px;
+      border: none;
+      color: white;
+      cursor: pointer;
+    }
+    .actions button.delete {
+      background-color: #f44336;
+    }
+    .actions button:hover {
+      opacity: 0.8;
+    }
+    /* Input editing styles */
+    .edit-input {
+      font-size: 1rem;
+      padding: 6px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <h1>To-Do List</h1>
+  <form id="taskForm">
+    <input type="text" id="taskInput" placeholder="Enter task description" required />
+    <input type="datetime-local" id="taskDateTime" />
+    <button type="submit">Add Task</button>
+  </form>
+  <ul id="taskList"></ul>
+
+  <script>
+    const taskForm = document.getElementById('taskForm');
+    const taskInput = document.getElementById('taskInput');
+    const taskDateTime = document.getElementById('taskDateTime');
+    const taskList = document.getElementById('taskList');
+
+    let tasks = [];
+
+    function renderTasks() {
+      tasks.sort((a, b) => {
+        if (!a.dateTime) return 1;
+        if (!b.dateTime) return -1;
+        return new Date(a.dateTime) - new Date(b.dateTime);
+      });
+
+      taskList.innerHTML = '';
+
+      tasks.forEach((task, index) => {
+        const li = document.createElement('li');
+
+        const taskInfo = document.createElement('div');
+        taskInfo.className = 'task-info' + (task.completed ? ' completed' : '');
+        taskInfo.title = 'Click to toggle complete';
+
+        if (task.editing) {
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.value = task.description;
+          input.className = 'edit-input';
+          input.addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+              finishEditing(index, input.value);
+            }
+            if (e.key === 'Escape') {
+              cancelEditing(index);
+            }
+          });
+          input.addEventListener('blur', () => finishEditing(index, input.value));
+          taskInfo.appendChild(input);
+          input.focus();
+        } else {
+          const descSpan = document.createElement('span');
+          descSpan.className = 'task-desc';
+          descSpan.textContent = task.description;
+          taskInfo.appendChild(descSpan);
+          
+          if (task.dateTime) {
+            const dateSpan = document.createElement('span');
+            dateSpan.className = 'task-date';
+            const dateObj = new Date(task.dateTime);
+            dateSpan.textContent = dateObj.toLocaleString();
+            taskInfo.appendChild(dateSpan);
+          }
+
+          taskInfo.addEventListener('click', () => {
+            toggleComplete(index);
+          });
+        }
+
+        li.appendChild(taskInfo);
+
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'actions';
+
+        if (!task.editing) {
+          const editBtn = document.createElement('button');
+          editBtn.textContent = 'Edit';
+          editBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            startEditing(index);
+          });
+          actionsDiv.appendChild(editBtn);
+        }
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.className = 'delete';
+        deleteBtn.addEventListener('click', e => {
+          e.stopPropagation();
+          deleteTask(index);
+        });
+        actionsDiv.appendChild(deleteBtn);
+
+        li.appendChild(actionsDiv);
+
+        taskList.appendChild(li);
+      });
+    }
+
+    taskForm.addEventListener('submit', e => {
+      e.preventDefault();
+      const description = taskInput.value.trim();
+      if (!description) return;
+      const dateTime = taskDateTime.value || null;
+
+      tasks.push({
+        description,
+        dateTime,
+        completed: false,
+        editing: false
+      });
+
+      taskInput.value = '';
+      taskDateTime.value = '';
+      renderTasks();
+    });
+
+    function toggleComplete(index) {
+      tasks[index].completed = !tasks[index].completed;
+      renderTasks();
+    }
+
+    function deleteTask(index) {
+      tasks.splice(index, 1);
+      renderTasks();
+    }
+
+    function startEditing(index) {
+      tasks[index].editing = true;
+      renderTasks();
+    }
+
+    function finishEditing(index, newDesc) {
+      if (newDesc.trim() === '') {
+        deleteTask(index);
+      } else {
+        tasks[index].description = newDesc.trim();
+        tasks[index].editing = false;
+      }
+      renderTasks();
+    }
+
+    function cancelEditing(index) {
+      tasks[index].editing = false;
+      renderTasks();
+    }
+
+    renderTasks();
+  </script>
+</body>
+</html>
